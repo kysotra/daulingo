@@ -1,0 +1,12 @@
+@layer theme {
+  @theme {
+    /* Poppins Font Family Mappings (loaded via expo-font) */
+    --font-poppins: "Poppins-Regular", sans-serif;
+    --font-poppins-medium: "Poppins-Medium", sans-serif;
+    --font-poppins-semibold: "Poppins-SemiBold", sans-serif;
+    --font-poppins-bold: "Poppins-Bold", sans-serif;
+
+    /* Set default sans font to Poppins Regular */
+    --font-sans: "Poppins-Regular", sans-serif;
+  }
+}
