@@ -1,25 +1,103 @@
-import React, { useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { 
-  TextInput as RNTextInput, 
-  StyleSheet, 
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { View, Text, ScrollView, Pressable, Image } from "@/tw";
-import { images } from "@/constants/images";
 import VerificationModal from "@/components/VerificationModal";
+import { images } from "@/constants/images";
+import { Image, Pressable, ScrollView, Text, View } from "@/tw";
+import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  TextInput as RNTextInput,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useOAuth } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo/legacy";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+
+// Warm up web browser for OAuth
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUp() {
   const router = useRouter();
-  const [email, setEmail] = useState("alex@gmail.com");
-  const [password, setPassword] = useState("•••••••••");
+  const { isLoaded, signUp, setActive } = useSignUp();
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignUp = () => {
-    setModalVisible(true);
+  // Clerk Social Logins
+  const { startOAuthFlow: startGoogleAuth } = useOAuth({ strategy: "oauth_google" });
+  const { startOAuthFlow: startFacebookAuth } = useOAuth({ strategy: "oauth_facebook" });
+  const { startOAuthFlow: startAppleAuth } = useOAuth({ strategy: "oauth_apple" });
+
+  const handleSocialAuth = async (startAuth: any) => {
+    try {
+      setLoading(true);
+      const { createdSessionId, setActive: setSessionActive } = await startAuth({
+        redirectUrl: Linking.createURL("/", { scheme: "duolingoclone" }),
+      });
+
+      if (createdSessionId && setSessionActive) {
+        await setSessionActive({ session: createdSessionId });
+      }
+    } catch (err: any) {
+      console.error("OAuth error: ", err);
+      Alert.alert("Authentication Failed", err.errors?.[0]?.message || err.message || "Failed to authenticate.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!isLoaded || loading) return;
+
+    if (!email || !password) {
+      Alert.alert("Input Error", "Please fill in all fields.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signUp.create({
+        emailAddress: email,
+        password,
+      });
+
+      // Prepare email verification code
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setModalVisible(true);
+    } catch (err: any) {
+      console.error("SignUp error: ", err);
+      Alert.alert("Sign Up Failed", err.errors?.[0]?.message || err.message || "Failed to start sign up.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (code: string) => {
+    if (!isLoaded || !signUp) return;
+    const completeSignUp = await signUp.attemptEmailAddressVerification({
+      code,
+    });
+
+    if (completeSignUp.status === "complete") {
+      if (setActive) {
+        await setActive({ session: completeSignUp.createdSessionId });
+      }
+    } else {
+      throw new Error(`Sign up state: ${completeSignUp.status}`);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!isLoaded || !signUp) return;
+    await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
   };
 
   return (
@@ -43,7 +121,7 @@ export default function SignUp() {
                 className="w-10 h-10 items-center justify-center rounded-full active:bg-slate-50 border border-slate-100"
               >
                 {/* Visual Chevron Left */}
-                <View className="w-3 h-3 border-l-2.5 border-b-2.5 border-text-primary rotate-45 ml-1" />
+                 <Ionicons name="chevron-back" size={20} color="#0D132B" />
               </Pressable>
             </View>
 
@@ -80,6 +158,8 @@ export default function SignUp() {
                   autoCapitalize="none"
                   keyboardType="email-address"
                   style={styles.textInput}
+                  placeholder="Enter email address"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
 
@@ -95,6 +175,8 @@ export default function SignUp() {
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     style={styles.textInput}
+                    placeholder="Enter password"
+                    placeholderTextColor="#6B7280"
                   />
                 </View>
                 
@@ -103,24 +185,28 @@ export default function SignUp() {
                   onPress={() => setShowPassword(!showPassword)}
                   className="w-10 h-10 items-center justify-center active:opacity-75"
                 >
-                  <View className="w-6 h-4 border-2 border-[#6B7280] rounded-full items-center justify-center relative">
-                    <View className="w-2.5 h-2.5 bg-[#6B7280] rounded-full" />
-                    {showPassword && (
-                      <View className="absolute w-7 h-0.5 bg-[#6B7280] rotate-45" />
-                    )}
-                  </View>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={22}
+                    color="#6B7280"
+                  />
                 </Pressable>
               </View>
 
               {/* SIGN UP CTA */}
               <Pressable 
                 onPress={handleSignUp}
-                className="bg-lingua-purple py-4 rounded-[20px] active:opacity-95 shadow-md items-center justify-center"
+                disabled={loading}
+                className={`bg-lingua-purple py-4 rounded-[20px] active:opacity-95 shadow-md items-center justify-center ${loading ? "opacity-75" : ""}`}
                 style={{ height: 58 }}
               >
-                <Text className="text-white font-poppins-bold text-[18px]">
-                  Sign Up
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-poppins-bold text-[18px]">
+                    Sign Up
+                  </Text>
+                )}
               </Pressable>
 
             </View>
@@ -136,47 +222,37 @@ export default function SignUp() {
 
             {/* SOCIAL AUTH CARDS */}
             <View className="w-full">
-              
-              {/* GOOGLE CARD */}
-              <Pressable 
-                onPress={handleSignUp}
+               {/* GOOGLE CARD */}
+              <Pressable
+                onPress={() => handleSocialAuth(startGoogleAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-3 active:bg-slate-50"
               >
-                {/* Stylized high-fidelity G logo */}
-                <View className="w-6 h-6 mr-3 flex-row flex-wrap items-center justify-center">
-                  <Text className="text-[16px] font-poppins-bold text-[#EA4335]">G</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#4285F4]">o</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#FBBC05]">o</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#34A853]">g</Text>
-                </View>
+                <AntDesign name="google" size={20} color="#EA4335" style={{ marginRight: 10 }} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Google
                 </Text>
               </Pressable>
-
+              
               {/* FACEBOOK CARD */}
-              <Pressable 
-                onPress={handleSignUp}
+              <Pressable
+                onPress={() => handleSocialAuth(startFacebookAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-3 active:bg-slate-50"
               >
-                {/* Visual FB blue circular icon */}
-                <View className="w-6 h-6 bg-[#1877F2] rounded-full items-center justify-center mr-3">
-                  <Text className="text-white font-poppins-bold text-xs">f</Text>
-                </View>
+                <FontAwesome name="facebook" size={20} color="#1877F2" style={{ marginRight: 10, marginBottom: 10 }} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Facebook
                 </Text>
               </Pressable>
 
               {/* APPLE CARD */}
-              <Pressable 
-                onPress={handleSignUp}
+              <Pressable
+                onPress={() => handleSocialAuth(startAppleAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-6 active:bg-slate-50"
               >
-                {/* Native Apple black emblem */}
-                <View className="mr-3">
-                  <Text className="text-text-primary text-[18px] font-poppins-bold"></Text>
-                </View>
+                <AntDesign name="apple" size={20} color="#000000" style={{ marginRight: 10, marginBottom:10}} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Apple
                 </Text>
@@ -204,6 +280,8 @@ export default function SignUp() {
       <VerificationModal 
         visible={modalVisible} 
         onClose={() => setModalVisible(false)}
+        onVerify={handleVerify}
+        onResend={handleResend}
       />
     </SafeAreaView>
   );

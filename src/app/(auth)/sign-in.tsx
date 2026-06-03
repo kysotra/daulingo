@@ -1,23 +1,118 @@
-import React, { useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { 
-  TextInput as RNTextInput, 
-  StyleSheet, 
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { View, Text, ScrollView, Pressable, Image } from "@/tw";
-import { images } from "@/constants/images";
 import VerificationModal from "@/components/VerificationModal";
+import { images } from "@/constants/images";
+import { Image, Pressable, ScrollView, Text, View } from "@/tw";
+import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  TextInput as RNTextInput,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useOAuth } from "@clerk/expo";
+import { useSignIn } from "@clerk/expo/legacy";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+
+// Warm up web browser for OAuth
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignIn() {
   const router = useRouter();
-  const [email, setEmail] = useState("alex@gmail.com");
-  const [modalVisible, setModalVisible] = useState(false);
+  const { isLoaded, signIn, setActive } = useSignIn();
 
-  const handleSignIn = () => {
-    setModalVisible(true);
+  const [email, setEmail] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Clerk Social Logins
+  const { startOAuthFlow: startGoogleAuth } = useOAuth({ strategy: "oauth_google" });
+  const { startOAuthFlow: startFacebookAuth } = useOAuth({ strategy: "oauth_facebook" });
+  const { startOAuthFlow: startAppleAuth } = useOAuth({ strategy: "oauth_apple" });
+
+  const handleSocialAuth = async (startAuth: any) => {
+    try {
+      setLoading(true);
+      const { createdSessionId, setActive: setSessionActive } = await startAuth({
+        redirectUrl: Linking.createURL("/", { scheme: "duolingoclone" }),
+      });
+
+      if (createdSessionId && setSessionActive) {
+        await setSessionActive({ session: createdSessionId });
+      }
+    } catch (err: any) {
+      console.error("OAuth error: ", err);
+      Alert.alert("Authentication Failed", err.errors?.[0]?.message || err.message || "Failed to authenticate.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignIn = async () => {
+    if (!isLoaded || loading) return;
+
+    if (!email) {
+      Alert.alert("Input Error", "Please enter your email address.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { supportedFirstFactors } = await signIn.create({ identifier: email });
+
+      const emailCodeFactor = supportedFirstFactors?.find(
+        (factor: any) => factor.strategy === "email_code"
+      );
+
+      if (emailCodeFactor && 'emailAddressId' in emailCodeFactor) {
+        await signIn.prepareFirstFactor({
+          strategy: "email_code",
+          emailAddressId: emailCodeFactor.emailAddressId,
+        });
+        setModalVisible(true);
+      } else {
+        Alert.alert("Sign In Error", "Email verification code is not supported for this account.");
+      }
+    } catch (err: any) {
+      console.error("SignIn error: ", err);
+      Alert.alert("Sign In Failed", err.errors?.[0]?.message || err.message || "Failed to start sign in.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (code: string) => {
+    if (!isLoaded || !signIn) return;
+    const result = await signIn.attemptFirstFactor({
+      strategy: "email_code",
+      code,
+    });
+
+    if (result.status === "complete") {
+      if (setActive) {
+        await setActive({ session: result.createdSessionId });
+      }
+    } else {
+      throw new Error(`Sign in state: ${result.status}`);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!isLoaded || !signIn) return;
+    const { supportedFirstFactors } = signIn;
+    const emailCodeFactor = supportedFirstFactors?.find(
+      (factor: any) => factor.strategy === "email_code"
+    );
+    if (emailCodeFactor && 'emailAddressId' in emailCodeFactor) {
+      await signIn.prepareFirstFactor({
+        strategy: "email_code",
+        emailAddressId: emailCodeFactor.emailAddressId,
+      });
+    }
   };
 
   return (
@@ -41,7 +136,7 @@ export default function SignIn() {
                 className="w-10 h-10 items-center justify-center rounded-full active:bg-slate-50 border border-slate-100"
               >
                 {/* Visual Chevron Left */}
-                <View className="w-3 h-3 border-l-2.5 border-b-2.5 border-text-primary rotate-45 ml-1" />
+                <Ionicons name="chevron-back" size={20} color="#0D132B" />
               </Pressable>
             </View>
 
@@ -78,18 +173,25 @@ export default function SignIn() {
                   autoCapitalize="none"
                   keyboardType="email-address"
                   style={styles.textInput}
+                  placeholder="Enter email address"
+                  placeholderTextColor="#6B7280"
                 />
               </View>
 
               {/* LOG IN CTA */}
               <Pressable 
                 onPress={handleSignIn}
-                className="bg-lingua-purple py-4 rounded-[20px] active:opacity-95 shadow-md items-center justify-center"
+                disabled={loading}
+                className={`bg-lingua-purple py-4 rounded-[20px] active:opacity-95 shadow-md items-center justify-center ${loading ? "opacity-75" : ""}`}
                 style={{ height: 58 }}
               >
-                <Text className="text-white font-poppins-bold text-[18px]">
-                  Log In
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-poppins-bold text-[18px]">
+                    Log In
+                  </Text>
+                )}
               </Pressable>
 
             </View>
@@ -106,43 +208,37 @@ export default function SignIn() {
             {/* SOCIAL AUTH CARDS */}
             <View className="w-full">
               
-              {/* GOOGLE CARD */}
-              <Pressable 
-                onPress={handleSignIn}
+                {/* GOOGLE CARD */}
+              <Pressable
+                onPress={() => handleSocialAuth(startGoogleAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-3 active:bg-slate-50"
               >
-                <View className="w-6 h-6 mr-3 flex-row flex-wrap items-center justify-center">
-                  <Text className="text-[16px] font-poppins-bold text-[#EA4335]">G</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#4285F4]">o</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#FBBC05]">o</Text>
-                  <Text className="text-[16px] font-poppins-bold text-[#34A853]">g</Text>
-                </View>
+                <AntDesign name="google" size={20} color="#EA4335" style={{ marginRight: 10 }} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Google
                 </Text>
               </Pressable>
-
+              
               {/* FACEBOOK CARD */}
-              <Pressable 
-                onPress={handleSignIn}
+              <Pressable
+                onPress={() => handleSocialAuth(startFacebookAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-3 active:bg-slate-50"
               >
-                <View className="w-6 h-6 bg-[#1877F2] rounded-full items-center justify-center mr-3">
-                  <Text className="text-white font-poppins-bold text-xs">f</Text>
-                </View>
+                <FontAwesome name="facebook" size={20} color="#1877F2" style={{ marginRight: 10, marginBottom: 10 }} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Facebook
                 </Text>
               </Pressable>
 
               {/* APPLE CARD */}
-              <Pressable 
-                onPress={handleSignIn}
+              <Pressable
+                onPress={() => handleSocialAuth(startAppleAuth)}
+                disabled={loading}
                 className="bg-white border-2 border-border-primary rounded-[20px] py-3.5 px-6 flex-row items-center justify-center mb-6 active:bg-slate-50"
               >
-                <View className="mr-3">
-                  <Text className="text-text-primary text-[18px] font-poppins-bold"></Text>
-                </View>
+                <AntDesign name="apple" size={20} color="#000000" style={{ marginRight: 10, marginBottom:10}} />
                 <Text className="text-[15px] font-poppins-semibold text-text-primary">
                   Continue with Apple
                 </Text>
@@ -170,6 +266,8 @@ export default function SignIn() {
       <VerificationModal 
         visible={modalVisible} 
         onClose={() => setModalVisible(false)}
+        onVerify={handleVerify}
+        onResend={handleResend}
       />
     </SafeAreaView>
   );

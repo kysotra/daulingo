@@ -1,0 +1,60 @@
+import { Language } from '../types/learning';
+
+export const languages: Language[] = [
+  {
+    id: 'en',
+    name: 'English',
+    nativeName: 'English',
+    flag: '🇺🇸',
+    code: 'en-US',
+    learners: '35.2M learners',
+  },
+  {
+    id: 'es',
+    name: 'Spanish',
+    nativeName: 'Español',
+    flag: '🇪🇸',
+    code: 'es-ES',
+    learners: '28.4M learners',
+  },
+  {
+    id: 'fr',
+    name: 'French',
+    nativeName: 'Français',
+    flag: '🇫🇷',
+    code: 'fr-FR',
+    learners: '19.4M learners',
+  },
+  {
+    id: 'ja',
+    name: 'Japanese',
+    nativeName: '日本語',
+    flag: '🇯🇵',
+    code: 'ja-JP',
+    learners: '12.7M learners',
+  },
+  {
+    id: 'ko',
+    name: 'Korean',
+    nativeName: '한국어',
+    flag: '🇰🇷',
+    code: 'ko-KR',
+    learners: '9.3M learners',
+  },
+  {
+    id: 'de',
+    name: 'German',
+    nativeName: 'Deutsch',
+    flag: '🇩🇪',
+    code: 'de-DE',
+    learners: '8.1M learners',
+  },
+  {
+    id: 'zh',
+    name: 'Chinese',
+    nativeName: '中文',
+    flag: '🇨🇳',
+    code: 'zh-CN',
+    learners: '7.4M learners',
+  },
+];
