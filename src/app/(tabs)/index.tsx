@@ -4,22 +4,33 @@ import { useClerk, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useStore } from "@/store/useStore";
+import { useStore, clearAppStorage } from "@/store/useStore";
 import { languages } from "@/data/languages";
+import { Alert } from "react-native";
 
 export default function Index() {
   const router = useRouter();
   const { signOut } = useClerk();
   const { user } = useUser();
-  const { selectedLanguageId } = useStore();
+  const { selectedLanguageId, setSelectedLanguageId } = useStore();
   
-  const currentLanguage = languages.find(l => l.id === selectedLanguageId) || languages[0];
+  const currentLanguage = languages.find(l => l.id === selectedLanguageId);
 
   const handleSignOut = async () => {
     try {
       await signOut();
     } catch (error) {
       console.error("Sign out error", error);
+    }
+  };
+
+  const handleClearStorage = async () => {
+    try {
+      setSelectedLanguageId(null);
+      await clearAppStorage();
+      Alert.alert("Success", "AsyncStorage cleared! You will be routed to select a language.");
+    } catch (e) {
+      console.error("Clear storage error", e);
     }
   };
 
@@ -118,6 +129,17 @@ export default function Index() {
               </View>
             </View>
           </View>
+        </View>
+
+        <View className="px-6 mb-4">
+          <Pressable
+            onPress={handleClearStorage}
+            className="btn-3d btn-white bg-slate-50 border-slate-200"
+          >
+            <Text className="text-text-primary font-poppins-bold text-base text-center">
+              CLEAR STORAGE (TEST SELECT)
+            </Text>
+          </Pressable>
         </View>
 
         <View className="px-6 mb-6">

@@ -16,8 +16,24 @@ export default function LanguageSelect() {
 
   const handleConfirm = () => {
     setSelectedLanguageId(tempSelectedId);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/" as any);
+    }
   };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (selectedLanguageId) {
+      router.replace("/" as any);
+    } else {
+      router.replace("/onboarding");
+    }
+  };
+
+  const showBackButton = router.canGoBack() || !!selectedLanguageId;
 
   const filteredLanguages = languages.filter(
     (lang) =>
@@ -29,16 +45,20 @@ export default function LanguageSelect() {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       {/* HEADER */}
       <View className="px-6 py-4 flex-row items-center justify-between border-b border-slate-100">
-        <Pressable
-          onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center rounded-full active:bg-slate-50 border border-slate-100"
-        >
-          <Ionicons name="chevron-back" size={22} color="#0D132B" />
-        </Pressable>
+        {showBackButton ? (
+          <Pressable
+            onPress={handleBack}
+            className="w-10 h-10 items-center justify-center rounded-full active:bg-slate-50 border border-slate-100"
+          >
+            <Ionicons name="chevron-back" size={22} color="#0D132B" />
+          </Pressable>
+        ) : (
+          <View className="w-10 h-10" />
+        )}
         <Text className="text-[18px] font-poppins-bold text-text-primary text-center">
           Choose a language
         </Text>
-        <View className="w-10" />
+        <View className="w-10 h-10" />
       </View>
 
       <ScrollView

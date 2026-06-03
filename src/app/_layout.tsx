@@ -4,6 +4,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { ClerkProvider, useAuth } from "@clerk/expo";
 import { tokenCache } from "../lib/tokenCache";
+import { useStore } from "@/store/useStore";
 import "../global.css";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
@@ -19,18 +20,31 @@ function AuthGate() {
   const { isLoaded, isSignedIn } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const selectedLanguageId = useStore((state) => state.selectedLanguageId);
 
   useEffect(() => {
     if (!isLoaded) return;
 
+    // Wait for Zustand store to hydrate from AsyncStorage
+    if (!useStore.persist.hasHydrated()) {
+      return;
+    }
+
     const inAuthGroup = segments[0] === "(auth)" || segments[0] === "onboarding";
+    const isSelectingLanguage = segments[0] === "language-select";
 
     if (!isSignedIn && !inAuthGroup) {
       router.replace("/onboarding");
-    } else if (isSignedIn && inAuthGroup) {
-      router.replace("/");
+    } else if (isSignedIn) {
+      if (!selectedLanguageId) {
+        if (!isSelectingLanguage) {
+          router.replace("/language-select");
+        }
+      } else if (inAuthGroup) {
+        router.replace("/" as any);
+      }
     }
-  }, [isSignedIn, isLoaded, segments, router]);
+  }, [isSignedIn, isLoaded, selectedLanguageId, segments, router]);
 
   if (!isLoaded) {
     return null;
